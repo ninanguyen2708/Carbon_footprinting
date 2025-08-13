@@ -74,7 +74,7 @@ export default function DashboardScreen() {
           message="Start tracking your carbon footprint to see your impact over time."
           icon={<Leaf size={48} color={colors.primary} />}
           actionLabel="Track Now"
-          onAction={() => {}}
+          onAction={() => {"./track"}}
         />
       );
     }
