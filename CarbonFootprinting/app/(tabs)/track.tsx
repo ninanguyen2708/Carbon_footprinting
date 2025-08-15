@@ -162,6 +162,7 @@ export default function TrackScreen() {
           )}
           
           {selectedActivity && (
+            
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Quantity</Text>
               <View style={styles.quantityContainer}>
@@ -203,13 +204,24 @@ export default function TrackScreen() {
           )}
           
           {selectedActivity && (
-            <Button
-              title="Add Entry"
-              onPress={handleSubmit}
-              loading={loading}
-              style={styles.submitButton}
-              testID="submit-button"
-            />
+            <View>
+              <Button
+                title="Cancel"
+                onPress={() => {
+                  setSelectedCategory(null);
+                  setSelectedActivity(null);
+                  setQuantity("");
+                  setNotes("");
+                }}
+              />    
+              <Button
+                title="Add Entry"
+                onPress={handleSubmit}
+                loading={loading}
+                style={styles.submitButton}
+                testID="submit-button"
+              />
+            </View>
           )}
         </View>
       </ScrollView>

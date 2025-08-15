@@ -7,6 +7,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import CarbonSummaryCard from "@/components/CarbonSummaryCard";
 import EmptyState from "@/components/EmptyState";
 import colors from "@/constants/colors";
+import { router } from "expo-router";
 
 type TimeRange = "daily" | "weekly" | "monthly";
 
@@ -74,7 +75,7 @@ export default function DashboardScreen() {
           message="Start tracking your carbon footprint to see your impact over time."
           icon={<Leaf size={48} color={colors.primary} />}
           actionLabel="Track Now"
-          onAction={() => {"./track"}}
+          onAction={() => router.push('/(tabs)/track')}
         />
       );
     }
