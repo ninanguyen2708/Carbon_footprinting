@@ -16,17 +16,18 @@ import CategoryPicker from "@/components/CategoryPicker";
 import Button from "@/components/Button";
 import colors from "@/constants/colors";
 import { CarbonActivity, CarbonCategory } from "@/types";
+import { goBack } from "expo-router/build/global-state/routing";
 
 export default function TrackScreen() {
   const { addEntry, getActivitiesByCategory } = useCarbonData();
   const [selectedCategory, setSelectedCategory] = useState<CarbonCategory | null>(null);
-  const [selectedActivity, setSelectedActivity] = useState<CarbonActivity | null>(null);
+  const [selectedActivity, setSelectedActivity] = useState<CarbonActivity | any>(null);
   const [quantity, setQuantity] = useState("");
   const [notes, setNotes] = useState("");
   const [showActivities, setShowActivities] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const activities = selectedCategory ? getActivitiesByCategory(selectedCategory) : [];
+  const activities: CarbonActivity[] = selectedCategory ? getActivitiesByCategory(selectedCategory) : [];
 
   const handleCategorySelect = (category: CarbonCategory) => {
     setSelectedCategory(category);
@@ -100,20 +101,20 @@ export default function TrackScreen() {
             onSelectCategory={handleCategorySelect}
           />
           
-          {selectedCategory && (
+          {selectedCategory && !selectedActivity && (
             <View style={styles.section}>
-              <TouchableOpacity
+              {/* <TouchableOpacity
                 style={styles.dropdownHeader}
                 onPress={() => setShowActivities(!showActivities)}
                 testID="activities-dropdown"
-              >
+              > */}
                 <Text style={styles.sectionTitle}>Select Activity</Text>
-                {showActivities ? (
+                {/* {showActivities ? (
                   <ChevronUp size={20} color="#666" />
                 ) : (
                   <ChevronDown size={20} color="#666" />
                 )}
-              </TouchableOpacity>
+              </TouchableOpacity> */}
               
               {showActivities && (
                 <View style={styles.activitiesList}>
@@ -139,7 +140,7 @@ export default function TrackScreen() {
                         <Text
                           style={[
                             styles.activityValue,
-                            selectedActivity?.id === activity.id && styles.selectedActivityText,
+                            selectedActivity && selectedActivity.id === activity.id && styles.selectedActivityText,
                           ]}
                         >
                           {activity.carbonValue} kg CO₂e/{activity.unit}
@@ -208,7 +209,8 @@ export default function TrackScreen() {
               <Button
                 title="Cancel"
                 onPress={() => {
-                  setSelectedCategory(null);
+                  // setSelectedCategory(null);
+                  setShowActivities(true);
                   setSelectedActivity(null);
                   setQuantity("");
                   setNotes("");
@@ -280,7 +282,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E0E0E0",
     borderRadius: 8,
-    maxHeight: 200,
+    // maxHeight: 200,
   },
   activityItem: {
     flexDirection: "row",

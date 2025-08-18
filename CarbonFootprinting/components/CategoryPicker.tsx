@@ -99,6 +99,7 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   categoriesContainer: {
+    position: "relative",
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
