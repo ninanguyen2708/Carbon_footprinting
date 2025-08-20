@@ -24,11 +24,11 @@ export default function RadarChart({
   size = Dimensions.get("window").width - 80,
   showGrid = true,
   showLabels = true,
-  fillOpacity = 0.3,
+  fillOpacity = 0.25,
 }: RadarChartProps) {
   const centerX = size / 2;
   const centerY = size / 2;
-  const radius = size * 0.32; // Slightly smaller to ensure labels fit
+  const radius = size * 0.30; // Adjusted for better label spacing
   const angleStep = (2 * Math.PI) / data.length;
   
   // Calculate max value if not provided
@@ -46,8 +46,8 @@ export default function RadarChart({
     };
   };
   
-  // Generate grid circles
-  const gridLevels = 4; // Reduced from 5 for cleaner look
+  // Generate grid circles with better visibility
+  const gridLevels = 4;
   const gridCircles = [];
   for (let i = 1; i <= gridLevels; i++) {
     const levelRadius = (radius * i) / gridLevels;
@@ -58,14 +58,15 @@ export default function RadarChart({
         cy={centerY}
         r={levelRadius}
         fill="none"
-        stroke="#E5E5E5"
-        strokeWidth={0.5}
-        strokeDasharray={i === gridLevels ? "0" : "2,2"}
+        stroke="#D0D0D0"
+        strokeWidth={i === gridLevels ? 1.5 : 1}
+        strokeDasharray={i === gridLevels ? "0" : "4,4"}
+        opacity={i === gridLevels ? 1 : 0.5}
       />
     );
   }
   
-  // Generate axis lines
+  // Generate axis lines with better visibility
   const axisLines = data.map((_, index) => {
     const angle = index * angleStep - Math.PI / 2;
     const endX = centerX + radius * Math.cos(angle);
@@ -78,8 +79,9 @@ export default function RadarChart({
         y1={centerY}
         x2={endX}
         y2={endY}
-        stroke="#E5E5E5"
-        strokeWidth={0.5}
+        stroke="#D0D0D0"
+        strokeWidth={1}
+        opacity={0.6}
       />
     );
   });
@@ -92,10 +94,10 @@ export default function RadarChart({
     })
     .join(" ");
   
-  // Generate labels with more compact positioning
+  // Generate labels with better readability
   const labels = data.map((d, index) => {
     const angle = index * angleStep - Math.PI / 2;
-    const labelRadius = radius + 20; // Closer to chart
+    const labelRadius = radius + 25; // Slightly more space for readability
     const x = centerX + labelRadius * Math.cos(angle);
     const y = centerY + labelRadius * Math.sin(angle);
     
@@ -110,9 +112,9 @@ export default function RadarChart({
     // Adjust vertical alignment for top and bottom labels
     let dy = 0;
     if (y < centerY - radius + 10) {
-      dy = -5; // Move up for top labels
+      dy = -8; // Move up for top labels
     } else if (y > centerY + radius - 10) {
-      dy = 5; // Move down for bottom labels
+      dy = 8; // Move down for bottom labels
     }
     
     return (
@@ -120,7 +122,7 @@ export default function RadarChart({
         <SvgText
           x={x}
           y={y + dy}
-          fontSize={11}
+          fontSize={14}
           fontWeight="600"
           fill={colors.text}
           textAnchor={textAnchor}
@@ -130,11 +132,12 @@ export default function RadarChart({
         </SvgText>
         <SvgText
           x={x}
-          y={y + dy + 12}
-          fontSize={9}
-          fill="#666"
+          y={y + dy + 16}
+          fontSize={12}
+          fill="#555"
           textAnchor={textAnchor}
           alignmentBaseline="middle"
+          fontWeight="500"
         >
           {d.value.toFixed(1)}kg
         </SvgText>
@@ -142,7 +145,7 @@ export default function RadarChart({
     );
   });
   
-  // Generate data points (circles at vertices)
+  // Generate data points (circles at vertices) with better visibility
   const dataPoints = data.map((d, index) => {
     const point = getPointCoordinates(d.value, index);
     return (
@@ -150,25 +153,26 @@ export default function RadarChart({
         key={`point-${index}`}
         cx={point.x}
         cy={point.y}
-        r={3}
+        r={5}
         fill={d.color}
         stroke="#FFFFFF"
-        strokeWidth={1.5}
+        strokeWidth={2}
       />
     );
   });
   
-  // Grid level labels - more compact
+  // Grid level labels with better readability
   const gridLabels = [];
   for (let i = 1; i <= gridLevels; i++) {
     const value = (chartMaxValue * i) / gridLevels;
     gridLabels.push(
       <SvgText
         key={`grid-label-${i}`}
-        x={centerX + 3}
-        y={centerY - (radius * i) / gridLevels - 2}
-        fontSize={8}
-        fill="#999"
+        x={centerX + 5}
+        y={centerY - (radius * i) / gridLevels - 3}
+        fontSize={11}
+        fill="#666"
+        fontWeight="500"
         alignmentBaseline="middle"
       >
         {value.toFixed(0)}
@@ -188,13 +192,13 @@ export default function RadarChart({
           </G>
         )}
         
-        {/* Data polygon */}
+        {/* Data polygon with better visibility */}
         <Polygon
           points={polygonPoints}
           fill={colors.primary}
           fillOpacity={fillOpacity}
           stroke={colors.primary}
-          strokeWidth={1.5}
+          strokeWidth={2.5}
         />
         
         {/* Data points */}
@@ -207,7 +211,7 @@ export default function RadarChart({
         <Circle
           cx={centerX}
           cy={centerY}
-          r={2}
+          r={3}
           fill={colors.text}
         />
       </Svg>
