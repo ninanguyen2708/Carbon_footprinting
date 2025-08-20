@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { BarChart3, Plus, BookOpen, User } from "lucide-react-native";
+import { BarChart3, Plus, BookOpen, User, PieChart } from "lucide-react-native";
 import React from "react";
 import colors from "@/constants/colors";
 
@@ -36,6 +36,14 @@ export default function TabLayout() {
           title: "Track",
           tabBarIcon: ({ color }) => <Plus size={24} color={color} />,
           tabBarLabel: "Track",
+        }}
+      />
+      <Tabs.Screen
+        name="emissions"
+        options={{
+          title: "Emissions",
+          tabBarIcon: ({ color }) => <PieChart size={24} color={color} />,
+          tabBarLabel: "Analysis",
         }}
       />
       <Tabs.Screen
