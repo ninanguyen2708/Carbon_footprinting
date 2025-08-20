@@ -8,7 +8,7 @@ import {
   Dimensions,
   ActivityIndicator 
 } from "react-native";
-import { PieChart, BarChart3, Activity } from "lucide-react-native";
+import { PieChart, Activity } from "lucide-react-native";
 import { useCarbonData } from "@/providers/CarbonDataProvider";
 import RadarChart from "@/components/RadarChart";
 import EmptyState from "@/components/EmptyState";
@@ -16,12 +16,12 @@ import colors from "@/constants/colors";
 import { router } from "expo-router";
 
 type TimeRange = "week" | "month" | "year" | "all";
-type ChartType = "radar" | "scope" | "trend";
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 export default function EmissionsScreen() {
-  const { entries, dailyTotals, weeklyTotals, monthlyTotals, isLoading } = useCarbonData();
+  const { entries, isLoading } = useCarbonData();
   const [timeRange, setTimeRange] = useState<TimeRange>("month");
-  const [chartType, setChartType] = useState<ChartType>("radar");
   
   // Calculate category totals based on time range
   const categoryData = useMemo(() => {
@@ -69,45 +69,23 @@ export default function EmissionsScreen() {
     ];
   }, [entries, timeRange]);
   
-  // Calculate scope-based grouping (simplified for student context)
-  const scopeData = useMemo(() => {
-    const totals = {
-      scope1: 0, // Direct emissions (e.g., personal vehicle)
-      scope2: 0, // Energy consumption
-      scope3: 0, // Indirect (food, waste, public transport, etc.)
-    };
-    
-    entries.forEach(entry => {
-      // Simplified scope mapping for students
-      if (entry.category === "energy") {
-        totals.scope2 += entry.carbonValue;
-      } else if (entry.category === "transport" && entry.activity.toLowerCase().includes("car")) {
-        totals.scope1 += entry.carbonValue;
-      } else {
-        totals.scope3 += entry.carbonValue;
-      }
-    });
-    
-    return [
-      { category: "Direct", value: totals.scope1, color: "#FF6B6B" },
-      { category: "Energy", value: totals.scope2, color: "#4ECDC4" },
-      { category: "Indirect", value: totals.scope3, color: "#45B7D1" },
-    ];
-  }, [entries]);
-  
   const totalEmissions = categoryData.reduce((sum, item) => sum + item.value, 0);
   
-  const renderContent = () => {
-    if (isLoading) {
-      return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      );
-    }
-    
-    if (entries.length === 0) {
-      return (
+  // Calculate dynamic chart size based on screen dimensions
+  // Account for header, tabs, and other UI elements
+  const chartSize = Math.min(screenWidth - 70, screenHeight * 0.35);
+  
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+  
+  if (entries.length === 0) {
+    return (
+      <View style={styles.container}>
         <EmptyState
           title="No Emissions Data"
           message="Start tracking your activities to see your carbon footprint visualized here."
@@ -115,119 +93,101 @@ export default function EmissionsScreen() {
           actionLabel="Track Now"
           onAction={() => router.push('/(tabs)/track')}
         />
-      );
-    }
-    
-    return (
-      <>
-        {/* Summary Card */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Total Emissions ({timeRange})</Text>
-          <Text style={styles.summaryValue}>{totalEmissions.toFixed(1)} kg CO₂e</Text>
-          <View style={styles.summaryBreakdown}>
-            {categoryData.map((item, index) => (
-              <View key={index} style={styles.breakdownItem}>
-                <View style={[styles.breakdownDot, { backgroundColor: item.color }]} />
-                <Text style={styles.breakdownText}>
-                  {item.category}: {((item.value / totalEmissions) * 100).toFixed(0)}%
-                </Text>
-              </View>
-            ))}
-          </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Emissions Analysis</Text>
+          <Text style={styles.subtitle}>
+            Your carbon footprint breakdown by category
+          </Text>
         </View>
         
-        {/* Chart Type Selector */}
-        <View style={styles.chartTypeContainer}>
-          <TouchableOpacity
-            style={[styles.chartTypeButton, chartType === "radar" && styles.activeChartType]}
-            onPress={() => setChartType("radar")}
-          >
-            <PieChart size={16} color={chartType === "radar" ? "#FFF" : "#666"} />
-            <Text style={[styles.chartTypeText, chartType === "radar" && styles.activeChartTypeText]}>
-              Categories
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.chartTypeButton, chartType === "scope" && styles.activeChartType]}
-            onPress={() => setChartType("scope")}
-          >
-            <BarChart3 size={16} color={chartType === "scope" ? "#FFF" : "#666"} />
-            <Text style={[styles.chartTypeText, chartType === "scope" && styles.activeChartTypeText]}>
-              By Scope
-            </Text>
-          </TouchableOpacity>
+        {/* Time Range Selector */}
+        <View style={styles.timeRangeContainer}>
+          {(["week", "month", "year", "all"] as TimeRange[]).map((range) => (
+            <TouchableOpacity
+              key={range}
+              style={[styles.timeRangeButton, timeRange === range && styles.activeTimeRange]}
+              onPress={() => setTimeRange(range)}
+            >
+              <Text style={[styles.timeRangeText, timeRange === range && styles.activeTimeRangeText]}>
+                {range === "all" ? "All" : range.charAt(0).toUpperCase() + range.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        
+        {/* Summary Card */}
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryHeader}>
+            <PieChart size={20} color={colors.primary} />
+            <Text style={styles.summaryLabel}>Total Emissions</Text>
+          </View>
+          <Text style={styles.summaryValue}>{totalEmissions.toFixed(1)} kg CO₂e</Text>
+          <View style={styles.breakdownContainer}>
+            {categoryData.map((item, index) => {
+              const percentage = totalEmissions > 0 ? (item.value / totalEmissions) * 100 : 0;
+              return (
+                <View key={index} style={styles.breakdownItem}>
+                  <View style={[styles.breakdownDot, { backgroundColor: item.color }]} />
+                  <Text style={styles.breakdownText}>
+                    {item.category}: {percentage.toFixed(0)}%
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
         </View>
         
         {/* Chart */}
         <View style={styles.chartContainer}>
-          {chartType === "radar" ? (
-            <RadarChart 
-              data={categoryData}
-              size={Dimensions.get("window").width - 40}
-              showGrid={true}
-              showLabels={true}
-              fillOpacity={0.3}
-            />
-          ) : (
-            <View style={styles.scopeChartContainer}>
-              <Text style={styles.scopeTitle}>Emissions by Scope</Text>
-              <RadarChart 
-                data={scopeData}
-                size={Dimensions.get("window").width - 60}
-                showGrid={true}
-                showLabels={true}
-                fillOpacity={0.4}
-              />
-              <View style={styles.scopeLegend}>
-                <Text style={styles.scopeLegendTitle}>Understanding Scopes:</Text>
-                <Text style={styles.scopeLegendItem}>
-                  <Text style={{ color: "#FF6B6B", fontWeight: "600" }}>Direct:</Text> Emissions you control (personal vehicle)
-                </Text>
-                <Text style={styles.scopeLegendItem}>
-                  <Text style={{ color: "#4ECDC4", fontWeight: "600" }}>Energy:</Text> Electricity and heating
-                </Text>
-                <Text style={styles.scopeLegendItem}>
-                  <Text style={{ color: "#45B7D1", fontWeight: "600" }}>Indirect:</Text> Food, waste, public transport, purchases
-                </Text>
-              </View>
-            </View>
-          )}
+          <Text style={styles.chartTitle}>Categories</Text>
+          <RadarChart 
+            data={categoryData}
+            size={chartSize}
+            showGrid={true}
+            showLabels={true}
+            fillOpacity={0.25}
+          />
         </View>
-      </>
-    );
-  };
-
-  return (
-    <ScrollView 
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>Emissions Analysis</Text>
-        <Text style={styles.subtitle}>
-          Visualize your carbon footprint across different categories
-        </Text>
-      </View>
-      
-      {/* Time Range Selector */}
-      <View style={styles.timeRangeContainer}>
-        {(["week", "month", "year", "all"] as TimeRange[]).map((range) => (
-          <TouchableOpacity
-            key={range}
-            style={[styles.timeRangeButton, timeRange === range && styles.activeTimeRange]}
-            onPress={() => setTimeRange(range)}
-          >
-            <Text style={[styles.timeRangeText, timeRange === range && styles.activeTimeRangeText]}>
-              {range === "all" ? "All Time" : range.charAt(0).toUpperCase() + range.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      
-      {renderContent()}
-    </ScrollView>
+        
+        {/* Insights Section */}
+        <View style={styles.insightsContainer}>
+          <Text style={styles.insightsTitle}>Quick Insights</Text>
+          {(() => {
+            const maxCategory = categoryData.reduce((max, item) => 
+              item.value > max.value ? item : max
+            );
+            const nonZeroCategories = categoryData.filter(item => item.value > 0);
+            
+            return (
+              <>
+                {maxCategory.value > 0 && (
+                  <Text style={styles.insightText}>
+                    • <Text style={styles.insightHighlight}>{maxCategory.category}</Text> is your highest emission source
+                  </Text>
+                )}
+                <Text style={styles.insightText}>
+                  • You're tracking {nonZeroCategories.length} out of 5 categories
+                </Text>
+                <Text style={styles.insightText}>
+                  • Total emissions for {timeRange === "all" ? "all time" : `this ${timeRange}`}: {totalEmissions.toFixed(1)} kg
+                </Text>
+              </>
+            );
+          })()}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -236,13 +196,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  contentContainer: {
-    paddingBottom: 40,
+  scrollContent: {
+    paddingBottom: 30,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   header: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 8,
+    paddingBottom: 12,
   },
   title: {
     fontSize: 24,
@@ -257,15 +222,14 @@ const styles = StyleSheet.create({
   timeRangeContainer: {
     flexDirection: "row",
     paddingHorizontal: 20,
-    marginTop: 12,
     marginBottom: 16,
+    gap: 6,
   },
   timeRangeButton: {
     flex: 1,
     paddingVertical: 8,
     alignItems: "center",
     borderRadius: 8,
-    marginHorizontal: 4,
     backgroundColor: "#F5F5F5",
   },
   activeTimeRange: {
@@ -274,7 +238,7 @@ const styles = StyleSheet.create({
   timeRangeText: {
     fontSize: 13,
     color: "#666",
-    fontWeight: "500" as const,
+    fontWeight: "600" as const,
   },
   activeTimeRangeText: {
     color: "#FFFFFF",
@@ -291,107 +255,84 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  summaryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
   summaryLabel: {
-    fontSize: 14,
+    fontSize: 15,
     color: "#666",
-    marginBottom: 4,
+    fontWeight: "500" as const,
   },
   summaryValue: {
     fontSize: 28,
     fontWeight: "700" as const,
     color: colors.primary,
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  summaryBreakdown: {
+  breakdownContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
+    gap: 12,
   },
   breakdownItem: {
     flexDirection: "row",
     alignItems: "center",
-    marginRight: 16,
-    marginBottom: 4,
   },
   breakdownDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 5,
   },
   breakdownText: {
-    fontSize: 12,
-    color: "#666",
-  },
-  chartTypeContainer: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    marginBottom: 16,
-    gap: 8,
-  },
-  chartTypeButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: "#F5F5F5",
-    gap: 6,
-  },
-  activeChartType: {
-    backgroundColor: colors.primary,
-  },
-  chartTypeText: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: 13,
+    color: "#555",
     fontWeight: "500" as const,
-  },
-  activeChartTypeText: {
-    color: "#FFFFFF",
   },
   chartContainer: {
     backgroundColor: "#FFFFFF",
     marginHorizontal: 20,
     borderRadius: 12,
     padding: 20,
+    marginBottom: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
-  },
-  scopeChartContainer: {
     alignItems: "center",
   },
-  scopeTitle: {
+  chartTitle: {
     fontSize: 16,
     fontWeight: "600" as const,
     color: colors.text,
     marginBottom: 16,
   },
-  scopeLegend: {
-    marginTop: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#E0E0E0",
-    width: "100%",
+  insightsContainer: {
+    marginHorizontal: 20,
+    padding: 16,
+    backgroundColor: "#F8F9FA",
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
   },
-  scopeLegendTitle: {
-    fontSize: 14,
+  insightsTitle: {
+    fontSize: 16,
     fontWeight: "600" as const,
     color: colors.text,
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  scopeLegendItem: {
-    fontSize: 12,
+  insightText: {
+    fontSize: 14,
     color: "#666",
-    marginBottom: 4,
-    lineHeight: 18,
+    marginBottom: 6,
+    lineHeight: 20,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    minHeight: 300,
+  insightHighlight: {
+    color: colors.primary,
+    fontWeight: "600" as const,
   },
 });
