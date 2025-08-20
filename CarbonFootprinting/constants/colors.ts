@@ -1,25 +1,25 @@
 const colors = {
-  primary: "#2E7D32", // Forest Green
-  secondary: "#00796B", // Teal
-  accent: "#4CAF50", // Light Green
+  primary: "#2e547dff", // Forest Green
+  secondary: "#000879ff", // Teal
+  accent: "#4c95afff", // Light Green
   background: "#F5F5F5", // Light Gray
   card: "#FFFFFF", // White
   text: "#212121", // Dark Gray
   border: "#E0E0E0", // Light Gray
-  notification: "#FF5722", // Orange
+  notification: "#e222ffff", // Orange
   error: "#D32F2F", // Red
   success: "#388E3C", // Green
-  warning: "#FFA000", // Amber
+  warning: "#bb00ffff", // Amber
   info: "#1976D2", // Blue
   
   // Carbon intensity colors
-  lowCarbon: "#81C784", // Light Green
+  lowCarbon: "#819ec7ff", // Light Green
   mediumCarbon: "#FFD54F", // Amber
   highCarbon: "#E57373", // Light Red
   
   // Chart colors
   transport: "#5C6BC0", // Indigo
-  food: "#66BB6A", // Green
+  food: "#6666bbff", // Green
   energy: "#FFA726", // Orange
   waste: "#8D6E63", // Brown
   other: "#78909C", // Blue Gray
