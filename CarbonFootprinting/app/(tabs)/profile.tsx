@@ -1,3 +1,4 @@
+// app/(tabs)/profile.tsx - Fixed for Firebase Auth
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Alert, Switch, TouchableOpacity } from "react-native";
 import { User, Settings, Shield, Bell, HelpCircle } from "lucide-react-native";
@@ -9,7 +10,8 @@ import colors from "@/constants/colors";
 export default function ProfileScreen() {
   const { user, logout, updateProfile } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
-  const [displayName, setDisplayName] = useState(user?.displayName || "");
+  const [firstName, setFirstName] = useState(user?.firstName || "");
+  const [lastName, setLastName] = useState(user?.lastName || "");
   const [university, setUniversity] = useState(user?.university || "");
   const [course, setCourse] = useState(user?.course || "");
   const [loading, setLoading] = useState(false);
@@ -20,17 +22,39 @@ export default function ProfileScreen() {
   const [biometricEnabled, setBiometricEnabled] = useState(false);
 
   const handleSaveProfile = async () => {
+    if (!firstName.trim() || !lastName.trim()) {
+      Alert.alert("Error", "First name and last name are required");
+      return;
+    }
+
     try {
       setLoading(true);
-      await updateProfile({
-        displayName,
-        university,
-        course,
-      });
+      console.log('Saving profile with:', { firstName, lastName, university, course });
+      
+      // Firebase AuthProvider expects Partial<User> object
+      const updates: any = {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+      };
+      
+      // Chỉ thêm university và course nếu có giá trị
+      if (university.trim()) {
+        updates.university = university.trim();
+      }
+      if (course.trim()) {
+        updates.course = course.trim();
+      }
+      
+      console.log('Saving profile with:', updates);
+
+      await updateProfile(updates);
+
       setIsEditing(false);
       Alert.alert("Success", "Profile updated successfully");
+      console.log('Profile saved successfully');
     } catch (error) {
       console.error("Failed to update profile:", error);
+      Alert.alert("Error", "Failed to update profile. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -45,10 +69,25 @@ export default function ProfileScreen() {
         { 
           text: "Logout", 
           style: "destructive",
-          onPress: logout
+          onPress: async () => {
+            try {
+              console.log('Logging out...');
+              await logout();
+            } catch (error) {
+              console.error("Logout failed:", error);
+              Alert.alert("Error", "Failed to logout. Please try again.");
+            }
+          }
         }
       ]
     );
+  };
+
+  const resetForm = () => {
+    setFirstName(user?.firstName || "");
+    setLastName(user?.lastName || "");
+    setUniversity(user?.university || "");
+    setCourse(user?.course || "");
   };
 
   const renderProfileSection = () => (
@@ -68,18 +107,28 @@ export default function ProfileScreen() {
       {isEditing ? (
         <View style={styles.editForm}>
           <Input
-            label="Display Name"
-            value={displayName}
-            onChangeText={setDisplayName}
-            placeholder="Enter your name"
-            testID="display-name-input"
+            label="First Name"
+            value={firstName}
+            onChangeText={setFirstName}
+            placeholder="Enter your first name"
+            autoCapitalize="words"
+            testID="first-name-input"
+          />
+          
+          <Input
+            label="Last Name"
+            value={lastName}
+            onChangeText={setLastName}
+            placeholder="Enter your last name"
+            autoCapitalize="words"
+            testID="last-name-input"
           />
           
           <Input
             label="University"
             value={university}
             onChangeText={setUniversity}
-            placeholder="Enter your university"
+            placeholder="Enter your university (optional)"
             testID="university-input"
           />
           
@@ -87,7 +136,7 @@ export default function ProfileScreen() {
             label="Course/Major"
             value={course}
             onChangeText={setCourse}
-            placeholder="Enter your course or major"
+            placeholder="Enter your course or major (optional)"
             testID="course-input"
           />
           
@@ -96,9 +145,7 @@ export default function ProfileScreen() {
               title="Cancel"
               onPress={() => {
                 setIsEditing(false);
-                setDisplayName(user?.displayName || "");
-                setUniversity(user?.university || "");
-                setCourse(user?.course || "");
+                resetForm();
               }}
               variant="outline"
               style={styles.cancelButton}
@@ -119,6 +166,16 @@ export default function ProfileScreen() {
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Email</Text>
             <Text style={styles.infoValue}>{user?.email}</Text>
+          </View>
+          
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>First Name</Text>
+            <Text style={styles.infoValue}>{user?.firstName || "Not set"}</Text>
+          </View>
+          
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Last Name</Text>
+            <Text style={styles.infoValue}>{user?.lastName || "Not set"}</Text>
           </View>
           
           <View style={styles.infoRow}>

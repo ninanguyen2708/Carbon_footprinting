@@ -1,3 +1,4 @@
+// app/(auth)/login.tsx - DOM Form Fix
 import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import { Link } from "expo-router";
@@ -32,12 +33,18 @@ export default function LoginScreen() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleLogin = async () => {
+  const handleLogin = async (e?: any) => {
+    // Prevent form submission if it's a web form event
+    if (e?.preventDefault) {
+      e.preventDefault();
+    }
+    
     if (validateForm()) {
       try {
+        console.log('Starting login...', { email });
         await login(email, password);
+        console.log('Login completed');
       } catch (error) {
-        // Error is handled in the login function
         console.log("Login failed:", error);
       }
     }
@@ -59,30 +66,37 @@ export default function LoginScreen() {
             <Text style={styles.tagline}>Track your carbon footprint</Text>
           </View>
           
-          <View style={styles.formContainer}>
+          {/* Form wrapper for web DOM compliance */}
+          <View style={styles.formContainer} nativeID="login-form">
             <Text style={styles.title}>Welcome Back</Text>
             <Text style={styles.subtitle}>Sign in to your account</Text>
             
-            <Input
-              label="Email"
-              placeholder="Enter your email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              error={errors.email}
-              testID="email-input"
-            />
-            
-            <Input
-              label="Password"
-              placeholder="Enter your password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              error={errors.password}
-              testID="password-input"
-            />
+            <View style={styles.formFields}>
+              <Input
+                label="Email"
+                placeholder="Enter your email"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                textContentType="emailAddress"
+                error={errors.email}
+                testID="email-input"
+              />
+              
+              <Input
+                label="Password"
+                placeholder="Enter your password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoComplete="current-password"
+                textContentType="password"
+                error={errors.password}
+                testID="password-input"
+              />
+            </View>
             
             <Button
               title="Sign In"
@@ -149,6 +163,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  formFields: {
+    // Group form fields for better DOM structure
   },
   title: {
     fontSize: 24,

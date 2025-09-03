@@ -40,7 +40,7 @@ export default function TrackScreen() {
     setShowActivities(false);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedCategory || !selectedActivity) {
       Alert.alert("Error", "Please select a category and activity");
       return;
@@ -55,13 +55,28 @@ export default function TrackScreen() {
 
     const carbonValue = Number(quantity) * selectedActivity.carbonValue;
     
-    addEntry({
+    // addEntry({
+    //   date: new Date().toISOString(),
+    //   category: selectedCategory,
+    //   activity: selectedActivity.name,
+    //   carbonValue,
+    //   notes: notes.trim() || undefined,
+    // });
+
+    const entryData: any = {
       date: new Date().toISOString(),
       category: selectedCategory,
       activity: selectedActivity.name,
       carbonValue,
-      notes: notes.trim() || undefined,
-    });
+    };
+    
+    // Chỉ thêm notes nếu có giá trị
+    if (notes.trim()) {
+      entryData.notes = notes.trim();
+    }
+    
+    // Gọi addEntry (không cần Async nếu không muốn await)
+    await addEntry(entryData);
 
     // Reset form
     setSelectedCategory(null);

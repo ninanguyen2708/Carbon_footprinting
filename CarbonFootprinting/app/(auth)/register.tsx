@@ -7,12 +7,17 @@ import Button from "@/components/Button";
 import colors from "@/constants/colors";
 import { useAuth } from "@/providers/AuthProvider";
 
+
 export default function RegisterScreen() {
   const { register, loading } = useAuth();
+  const [ firstName, setFirstName ] = useState("");
+  const [ lastName, setLastName ] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<{
+    firstName?: string;
+    lastName?: string;
     email?: string;
     password?: string;
     confirmPassword?: string;
@@ -20,11 +25,21 @@ export default function RegisterScreen() {
 
   const validateForm = () => {
     const newErrors: {
+      firstName?: string;
+      lastName?: string;
       email?: string;
       password?: string;
       confirmPassword?: string;
     } = {};
     
+    if (!firstName.trim()) {
+      newErrors.firstName = "First name is required";
+    }
+    
+    if (!lastName.trim()) {
+      newErrors.lastName = "Last name is required";
+    }
+
     if (!email.trim()) {
       newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(email)) {
@@ -50,7 +65,7 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     if (validateForm()) {
       try {
-        await register(email, password, confirmPassword);
+        await register(email, password, confirmPassword, firstName, lastName);
       } catch (error) {
         // Error is handled in the register function
         console.log("Registration failed:", error);
@@ -77,7 +92,26 @@ export default function RegisterScreen() {
           <View style={styles.formContainer}>
             <Text style={styles.title}>Create Account</Text>
             <Text style={styles.subtitle}>Sign up to get started</Text>
-            
+<Input
+              label="First Name"
+              placeholder="Enter your first name"
+              value={firstName}
+              onChangeText={setFirstName}
+              autoCapitalize="words"
+              error={errors.firstName}
+              testID="first-name-input"
+            />
+
+            <Input
+              label="Last Name"
+              placeholder="Enter your last name"
+              value={lastName}
+              onChangeText={setLastName}
+              autoCapitalize="words"
+              error={errors.lastName}
+              testID="last-name-input"
+            />
+
             <Input
               label="Email"
               placeholder="Enter your email"
@@ -116,7 +150,7 @@ export default function RegisterScreen() {
               style={styles.button}
               testID="register-button"
             />
-            
+                        
             <View style={styles.footer}>
               <Text style={styles.footerText}>Already have an account? </Text>
               <Link href="/(auth)/login" asChild>
