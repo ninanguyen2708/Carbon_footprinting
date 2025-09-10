@@ -1,6 +1,6 @@
 // app/(tabs)/profile.tsx - Fixed for Firebase Auth
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Alert, Switch, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Alert, Switch, TouchableOpacity, Platform } from "react-native";
 import { User, Settings, Shield, Bell, HelpCircle } from "lucide-react-native";
 import { useAuth } from "@/providers/AuthProvider";
 import Button from "@/components/Button";
@@ -8,7 +8,20 @@ import Input from "@/components/Input";
 import colors from "@/constants/colors";
 
 export default function ProfileScreen() {
-  const { user, logout, updateProfile } = useAuth();
+  // const { user, logout, updateProfile } = useAuth();
+
+  const authData = useAuth();
+  
+  // Debug: xem toàn bộ object được return từ useAuth
+  console.log('Full auth data:', authData);
+  console.log('Auth data keys:', Object.keys(authData));
+  
+  const { user, logout, updateProfile } = authData;
+  
+  // Debug: kiểm tra logout
+  console.log('Logout exists?', !!logout);
+  console.log('Logout type:', typeof logout);
+
   const [isEditing, setIsEditing] = useState(false);
   const [firstName, setFirstName] = useState(user?.firstName || "");
   const [lastName, setLastName] = useState(user?.lastName || "");
@@ -21,6 +34,7 @@ export default function ProfileScreen() {
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
 
+  
   const handleSaveProfile = async () => {
     if (!firstName.trim() || !lastName.trim()) {
       Alert.alert("Error", "First name and last name are required");
@@ -61,6 +75,16 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = () => {
+    console.log('Logout button pressed');
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure you want to logout?')) {
+        console.log('Logging out...');
+        logout();
+      }
+      return;
+    }
+    
     Alert.alert(
       "Logout",
       "Are you sure you want to logout?",
@@ -76,6 +100,8 @@ export default function ProfileScreen() {
             } catch (error) {
               console.error("Logout failed:", error);
               Alert.alert("Error", "Failed to logout. Please try again.");
+            } finally {
+              setLoading(false);
             }
           }
         }
@@ -296,6 +322,7 @@ export default function ProfileScreen() {
         textStyle={{ color: colors.error }}
         testID="logout-button"
       />
+      
     </ScrollView>
   );
 }

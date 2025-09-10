@@ -48,26 +48,12 @@ export default function LoginScreen() {
         console.log("Login failed:", error);
       }
     }
+
   };
 
-  return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.container} testID="login-screen">
-          <View style={styles.logoContainer}>
-            <View style={styles.logoBackground}>
-              <Leaf size={40} color={colors.primary} />
-            </View>
-            <Text style={styles.logoText}>CarbonTrack</Text>
-            <Text style={styles.tagline}>Track your carbon footprint</Text>
-          </View>
-          
-          {/* Form wrapper for web DOM compliance */}
-          <View style={styles.formContainer} nativeID="login-form">
+      const renderFormContent = () => (
+      <>
+            <View style={styles.formContainer} nativeID="login-form">
             <Text style={styles.title}>Welcome Back</Text>
             <Text style={styles.subtitle}>Sign in to your account</Text>
             
@@ -91,7 +77,6 @@ export default function LoginScreen() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
-                autoComplete="current-password"
                 textContentType="password"
                 error={errors.password}
                 testID="password-input"
@@ -115,6 +100,33 @@ export default function LoginScreen() {
               </Link>
             </View>
           </View>
+        </>
+    );
+
+
+
+  return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <View style={styles.container} testID="login-screen">
+          <View style={styles.logoContainer}>
+            <View style={styles.logoBackground}>
+              <Leaf size={40} color={colors.primary} />
+            </View>
+            <Text style={styles.logoText}>CarbonTrack</Text>
+            <Text style={styles.tagline}>Track your carbon footprint</Text>
+          </View>
+          
+          {/* Form wrapper for web DOM compliance */}
+          {Platform.OS === 'web' ? (
+            renderFormContent()
+          ) : (
+            renderFormContent()
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

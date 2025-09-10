@@ -173,14 +173,13 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   // Logout function
   const logout = async () => {
     try {
-      setLoading(true);
-      console.log('👋 Logging out...');
+      // setLoading(true);
       await signOut(auth);
+      setUser(null);
     } catch (error) {
       console.error("Logout error:", error);
-    } finally {
-      setLoading(false);
-    }
+      throw error;
+    } 
   };
 
   // Update profile function
