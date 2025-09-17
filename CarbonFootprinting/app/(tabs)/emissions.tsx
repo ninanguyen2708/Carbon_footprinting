@@ -6,16 +6,19 @@ import {
   ScrollView, 
   TouchableOpacity, 
   Dimensions,
-  ActivityIndicator 
+  ActivityIndicator,
+  Alert 
 } from "react-native";
-import { PieChart, Activity, Target, TrendingUp, AlertCircle } from "lucide-react-native";
+import { PieChart, Activity, Target, TrendingUp, AlertCircle, BarChart3, Radar, Info, TreePine, Zap } from "lucide-react-native";
 import { useCarbonData } from "@/providers/CarbonDataProvider";
-import RadarChart from "@/components/RadarChart";
+import EmissionsBarChart from "@/components/EmissionsBarChart";
+import ImprovedRadarChart from "@/components/ImprovedRadarChart";
 import EmptyState from "@/components/EmptyState";
 import colors from "@/constants/colors";
 import { router } from "expo-router";
 
 type TimeRange = "week" | "month" | "year" | "all";
+type ChartType = "bar" | "radar";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -36,9 +39,40 @@ const OPTIMAL_TARGETS = {
   }
 };
 
+// Carbon offset suggestions
+const OFFSET_SUGGESTIONS = {
+  transport: {
+    icon: "🌳",
+    text: (overAmount: number) => `Offset by planting ${Math.ceil(overAmount / 20)} trees`,
+    detail: "Each tree absorbs ~20kg CO2/year"
+  },
+  food: {
+    icon: "🥗",
+    text: (overAmount: number) => `Try ${Math.ceil(overAmount / 5)} meatless days`,
+    detail: "Each vegetarian day saves ~5kg CO2"
+  },
+  energy: {
+    icon: "❄️",
+    text: (overAmount: number) => `Equivalent to ${Math.ceil(overAmount / 2)} hours of AC use`,
+    detail: "Reduce by 1°C to save ~10% energy"
+  },
+  waste: {
+    icon: "♻️",
+    text: (overAmount: number) => `Recycle ${Math.ceil(overAmount * 2)} more kg`,
+    detail: "Recycling saves ~0.5kg CO2/kg waste"
+  },
+  other: {
+    icon: "🚲",
+    text: (overAmount: number) => `Bike ${Math.ceil(overAmount / 0.2)} km instead of driving`,
+    detail: "Cycling saves ~0.2kg CO2/km"
+  }
+};
+
 export default function EmissionsScreen() {
   const { entries, isLoading, resetEntries } = useCarbonData();
   const [timeRange, setTimeRange] = useState<TimeRange>("month");
+  const [chartType, setChartType] = useState<ChartType>("bar");
+  const [showOptimalExplanation, setShowOptimalExplanation] = useState(false);
   
   // Calculate current optimal target based on time range
   const getOptimalTarget = () => {
@@ -54,14 +88,14 @@ export default function EmissionsScreen() {
   const categoryData = useMemo(() => {
     let filteredEntries = entries;
     const now = new Date();
-    let timeMultiplier = 1; // Used to scale optimal targets
+    let timeMultiplier = 1;
     
     // Filter entries based on time range
     switch (timeRange) {
       case "week":
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         filteredEntries = entries.filter(e => new Date(e.date) >= weekAgo);
-        timeMultiplier = 7 / 30; // Week is roughly 7/30 of a month
+        timeMultiplier = 7 / 30;
         break;
       case "month":
         const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -71,10 +105,9 @@ export default function EmissionsScreen() {
       case "year":
         const yearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
         filteredEntries = entries.filter(e => new Date(e.date) >= yearAgo);
-        timeMultiplier = 12; // Year is 12 months
+        timeMultiplier = 12;
         break;
       case "all":
-        // Calculate months since first entry for scaling
         if (entries.length > 0) {
           const firstDate = new Date(entries[entries.length - 1].date);
           const monthsSince = (now.getTime() - firstDate.getTime()) / (30 * 24 * 60 * 60 * 1000);
@@ -145,12 +178,11 @@ export default function EmissionsScreen() {
     return totalEmissions / daysSinceFirst;
   }, [entries, totalEmissions]);
   
-  // Projections
   const monthlyProjection = dailyAverage * 30;
   const yearlyProjection = dailyAverage * 365;
   
-  // Dynamic chart size - bigger for better visibility
-  const chartSize = Math.min(screenWidth - 40, screenHeight * 0.35);
+  // Dynamic chart size
+  const chartSize = Math.min(screenWidth - 20, screenHeight * 0.45);
   
   // Determine achievement status
   const getAchievementStatus = () => {
@@ -218,7 +250,25 @@ export default function EmissionsScreen() {
           <View style={styles.targetHeader}>
             <Target size={20} color={achievementStatus.color} />
             <Text style={styles.targetTitle}>Carbon Target Progress</Text>
+            <TouchableOpacity onPress={() => setShowOptimalExplanation(!showOptimalExplanation)}>
+              <Info size={16} color="#666" />
+            </TouchableOpacity>
           </View>
+          
+          {showOptimalExplanation && (
+            <View style={styles.explanationBox}>
+              <Text style={styles.explanationTitle}>How Optimal Targets are Calculated 📊</Text>
+              <Text style={styles.explanationText}>
+                Based on scientific climate research and the Paris Agreement goals:
+              </Text>
+              <Text style={styles.explanationBullet}>• Global average: 2 tons CO2e/year by 2050</Text>
+              <Text style={styles.explanationBullet}>• Student average: 3.65 tons/year (transitional target)</Text>
+              <Text style={styles.explanationBullet}>• Distribution: Transport (30%), Food (25%), Energy (20%), Waste (10%), Other (15%)</Text>
+              <Text style={styles.explanationNote}>
+                These targets help limit global warming to 1.5°C above pre-industrial levels.
+              </Text>
+            </View>
+          )}
           
           <View style={styles.targetContent}>
             <View style={styles.targetValues}>
@@ -268,41 +318,76 @@ export default function EmissionsScreen() {
           </View>
         </View>
         
-        {/* Enhanced Radar Chart */}
+        {/* Chart Type Toggle */}
+        <View style={styles.chartToggleContainer}>
+          <Text style={styles.toggleLabel}>Chart Type:</Text>
+          <View style={styles.toggleButtons}>
+            <TouchableOpacity
+              style={[styles.toggleButton, chartType === "bar" && styles.activeToggle]}
+              onPress={() => setChartType("bar")}
+            >
+              <BarChart3 size={16} color={chartType === "bar" ? "#FFF" : "#666"} />
+              <Text style={[styles.toggleText, chartType === "bar" && styles.activeToggleText]}>Bar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toggleButton, chartType === "radar" && styles.activeToggle]}
+              onPress={() => setChartType("radar")}
+            >
+              <Radar size={16} color={chartType === "radar" ? "#FFF" : "#666"} />
+              <Text style={[styles.toggleText, chartType === "radar" && styles.activeToggleText]}>Radar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        
+        {/* Emissions Chart */}
         <View style={styles.chartContainer}>
           <Text style={styles.chartTitle}>Emissions by Category</Text>
           <Text style={styles.chartSubtitle}>
-            Actual vs Optimal Levels (dotted line)
+            {chartType === "bar" ? "Actual vs Optimal Levels" : "Radar view of emission patterns"}
           </Text>
-          <RadarChart 
-            data={categoryData}
-            size={chartSize}
-            showGrid={true}
-            showLabels={true}
-            fillOpacity={0.3}
-            showOptimalLevel={true}
-            optimalTotal={optimalTotal}
-            labelFontSize={12}
-          />
-
-          {/* Legend */}
-          <View style={styles.legendContainer}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendLine, { backgroundColor: colors.primary }]} />
-              <Text style={styles.legendText}>Your Emissions</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendLine, { borderStyle: 'dashed', borderWidth: 2, borderColor: colors.success, backgroundColor: 'transparent' }]} />
-              <Text style={styles.legendText}>Optimal Target</Text>
-            </View>
-          </View>
+          
+          {chartType === "bar" ? (
+            <EmissionsBarChart data={categoryData} />
+          ) : (
+            <ImprovedRadarChart data={categoryData} />
+          )}
         </View>
 
-        {/* ✅ Reset Button */}
+        {/* Reset Button - Works with both chart types */}
         <TouchableOpacity style={styles.resetButton} onPress={() => resetEntries()}>
           <Text style={styles.resetButtonText}>Reset Data</Text>
         </TouchableOpacity>
-        
+
+        {/* Carbon Offset Suggestions */}
+        <View style={styles.offsetCard}>
+          <View style={styles.offsetHeader}>
+            <TreePine size={20} color={colors.primary} />
+            <Text style={styles.offsetTitle}>Offset Suggestions 🌱</Text>
+          </View>
+          
+          {categoryData.filter(cat => cat.value > (cat.optimalValue || 0)).map((category) => {
+            const overAmount = category.value - (category.optimalValue || 0);
+            const categoryKey = category.category.toLowerCase() as keyof typeof OFFSET_SUGGESTIONS;
+            const suggestion = OFFSET_SUGGESTIONS[categoryKey];
+            
+            return (
+              <View key={category.category} style={styles.offsetItem}>
+                <Text style={styles.offsetCategory}>
+                  <Text style={styles.offsetIcon}>{suggestion.icon}</Text> {category.category}:
+                </Text>
+                <Text style={styles.offsetText}>{suggestion.text(overAmount)}</Text>
+                <Text style={styles.offsetDetail}>{suggestion.detail}</Text>
+              </View>
+            );
+          })}
+          
+          {categoryData.filter(cat => cat.value > (cat.optimalValue || 0)).length === 0 && (
+            <Text style={styles.offsetSuccess}>
+              🎉 Excellent! You're meeting all category targets!
+            </Text>
+          )}
+        </View>
+
         {/* Projections Card */}
         <View style={styles.projectionsCard}>
           <View style={styles.projectionsHeader}>
@@ -466,7 +551,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600" as const,
     color: colors.text,
+    flex: 1,
   },
+  
+  // Explanation Box
+  explanationBox: {
+    backgroundColor: "#F8F9FA",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+  },
+  explanationTitle: {
+    fontSize: 14,
+    fontWeight: "600" as const,
+    color: colors.text,
+    marginBottom: 6,
+  },
+  explanationText: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 4,
+  },
+  explanationBullet: {
+    fontSize: 12,
+    color: "#666",
+    marginLeft: 8,
+    marginBottom: 2,
+  },
+  explanationNote: {
+    fontSize: 11,
+    color: colors.primary,
+    fontStyle: "italic",
+    marginTop: 4,
+  },
+  
   targetContent: {
     marginBottom: 12,
   },
@@ -519,7 +639,7 @@ const styles = StyleSheet.create({
   },
   optimalMarker: {
     position: "absolute",
-    left: "66.67%", // 100% position
+    left: "66.67%",
     width: 2,
     height: "100%",
     backgroundColor: colors.text,
@@ -538,13 +658,50 @@ const styles = StyleSheet.create({
     right: 0,
   },
   
+  // Chart Toggle Styles
+  chartToggleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    marginBottom: 12,
+    gap: 12,
+  },
+  toggleLabel: {
+    fontSize: 14,
+    color: "#666",
+    fontWeight: "500" as const,
+  },
+  toggleButtons: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  toggleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: "#F5F5F5",
+  },
+  activeToggle: {
+    backgroundColor: colors.primary,
+  },
+  toggleText: {
+    fontSize: 13,
+    color: "#666",
+    fontWeight: "500" as const,
+  },
+  activeToggleText: {
+    color: "#FFFFFF",
+  },
+  
   // Chart Styles
   chartContainer: {
     backgroundColor: "#FFFFFF",
     marginHorizontal: 20,
     borderRadius: 12,
     padding: 20,
-    paddingBottom: 40,
     marginBottom: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -562,26 +719,79 @@ const styles = StyleSheet.create({
   chartSubtitle: {
     fontSize: 13,
     color: "#666",
+    marginBottom: 20,
+  },
+  
+  // Reset Button
+  resetButton: {
+    marginTop: 8,
+    marginBottom: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: colors.error,
+    borderRadius: 10,
+    alignSelf: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  resetButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600" as const,
+  },
+  
+  // Offset Card Styles
+  offsetCard: {
+    marginHorizontal: 20,
+    padding: 16,
+    backgroundColor: "#E8F5E9",
+    borderRadius: 12,
     marginBottom: 16,
   },
-  legendContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 20,
-    marginTop: 16,
-  },
-  legendItem: {
+  offsetHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    marginBottom: 12,
   },
-  legendLine: {
-    width: 20,
-    height: 3,
+  offsetTitle: {
+    fontSize: 16,
+    fontWeight: "600" as const,
+    color: colors.text,
   },
-  legendText: {
+  offsetItem: {
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.1)",
+  },
+  offsetCategory: {
+    fontSize: 14,
+    fontWeight: "600" as const,
+    color: colors.text,
+    marginBottom: 4,
+  },
+  offsetIcon: {
+    fontSize: 16,
+  },
+  offsetText: {
     fontSize: 13,
+    color: "#333",
+    marginBottom: 2,
+  },
+  offsetDetail: {
+    fontSize: 11,
     color: "#666",
+    fontStyle: "italic",
+  },
+  offsetSuccess: {
+    fontSize: 14,
+    color: colors.success,
+    fontWeight: "500" as const,
+    textAlign: "center",
   },
   
   // Projections Card
@@ -657,24 +867,5 @@ const styles = StyleSheet.create({
   tipHighlight: {
     color: colors.primary,
     fontWeight: "600" as const,
-  },
-  // ✅ Reset Button
-  resetButton: {
-    marginTop: 20,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    backgroundColor: colors.error,
-    borderRadius: 10,
-    alignSelf: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  resetButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
   },
 });
