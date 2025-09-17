@@ -361,6 +361,38 @@ export const [CarbonDataProvider, useCarbonData] = createContextHook(() => {
     },
   });
 
+  // Reset all carbon entries
+const resetEntriesMutation = useMutation({
+  mutationFn: async () => {
+    if (!userId) throw new Error("User not authenticated");
+
+    // fetch all entries
+    const q = query(collection(db, "users", userId, "entries"));
+    const snapshot = await getDocs(q);
+
+    // delete all entries one by one
+    const batchDeletes = snapshot.docs.map((entryDoc) =>
+      deleteDoc(doc(db, "users", userId, "entries", entryDoc.id))
+    );
+
+    await Promise.all(batchDeletes);
+    return true;
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["carbonEntries", userId] });
+    queryClient.invalidateQueries({ queryKey: ["dailyTotals", userId] });
+    queryClient.invalidateQueries({ queryKey: ["weeklyTotals", userId] });
+    queryClient.invalidateQueries({ queryKey: ["monthlyTotals", userId] });
+  },
+  onError: (error) => {
+    Alert.alert(
+      "Error",
+      "Failed to reset entries: " +
+        (error instanceof Error ? error.message : "Unknown error")
+    );
+  },
+});
+
   // Calculate daily totals (computed from entries)
   const dailyTotalsQuery = useQuery({
     queryKey: ["dailyTotals", userId],
@@ -493,6 +525,7 @@ export const [CarbonDataProvider, useCarbonData] = createContextHook(() => {
     addEntry: addEntryMutation.mutate,
     addEntryAsync: addEntryMutation.mutateAsync,
     deleteEntry: deleteEntryMutation.mutate,
+    resetEntries: resetEntriesMutation.mutate,
     getActivitiesByCategory,
   };
 });

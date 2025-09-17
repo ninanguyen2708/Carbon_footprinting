@@ -7,6 +7,7 @@ type DataPoint = {
   category: string;
   value: number;
   color: string;
+  optimalValue?: number;
 };
 
 type RadarChartProps = {
@@ -16,41 +17,66 @@ type RadarChartProps = {
   showGrid?: boolean;
   showLabels?: boolean;
   fillOpacity?: number;
+  showOptimalLevel?: boolean;
+  optimalTotal?: number;
+  labelFontSize?: number;
 };
 
 export default function RadarChart({
   data,
   maxValue,
-  size = Dimensions.get("window").width - 80,
+  size = Dimensions.get("window").width - 40,
   showGrid = true,
   showLabels = true,
-  fillOpacity = 0.25,
+  fillOpacity = 0.3,
+  showOptimalLevel = false,
+  optimalTotal,
+  labelFontSize = 13,
 }: RadarChartProps) {
   const centerX = size / 2;
   const centerY = size / 2;
-  const radius = size * 0.30; // Adjusted for better label spacing
+  const radius = size * 0.3; // slightly smaller radius for padding
   const angleStep = (2 * Math.PI) / data.length;
-  
+
   // Calculate max value if not provided
-  const chartMaxValue = maxValue || Math.max(...data.map(d => d.value), 10);
-  
-  // Helper function to get point coordinates
+  const chartMaxValue =
+    maxValue || Math.max(...data.map((d) => d.value), optimalTotal || 10, 10);
+
+  // Helper to compute point coords
   const getPointCoordinates = (value: number, index: number) => {
-    const angle = index * angleStep - Math.PI / 2; // Start from top
+    const angle = index * angleStep - Math.PI / 2;
     const normalizedValue = Math.min(value / chartMaxValue, 1);
     const pointRadius = radius * normalizedValue;
-    
     return {
       x: centerX + pointRadius * Math.cos(angle),
       y: centerY + pointRadius * Math.sin(angle),
     };
   };
-  
-  // Generate grid circles with better visibility
-  const gridLevels = 4;
+
+  // Optimal polygon
+  let optimalPolygonPoints = "";
+  if (showOptimalLevel && optimalTotal) {
+    const optimalPerCategory = optimalTotal / data.length;
+    optimalPolygonPoints = data
+      .map((_, i) => {
+        const point = getPointCoordinates(
+          data[i].optimalValue || optimalPerCategory,
+          i
+        );
+        return `${point.x},${point.y}`;
+      })
+      .join(" ");
+  }
+
+  // Grid circles & labels
+  const gridLevels = 5;
   const gridCircles = [];
+  const gridLabels = [];
+
   for (let i = 1; i <= gridLevels; i++) {
     const levelRadius = (radius * i) / gridLevels;
+    const levelValue = (chartMaxValue * i) / gridLevels;
+
     gridCircles.push(
       <Circle
         key={`grid-${i}`}
@@ -58,20 +84,34 @@ export default function RadarChart({
         cy={centerY}
         r={levelRadius}
         fill="none"
-        stroke="#D0D0D0"
+        stroke="#E0E0E0"
         strokeWidth={i === gridLevels ? 1.5 : 1}
-        strokeDasharray={i === gridLevels ? "0" : "4,4"}
-        opacity={i === gridLevels ? 1 : 0.5}
+        strokeDasharray={i === gridLevels ? "0" : "3,3"}
+        opacity={i === gridLevels ? 0.8 : 0.4}
       />
     );
+
+    if (i % 2 === 0 || i === gridLevels) {
+      gridLabels.push(
+        <SvgText
+          key={`grid-label-${i}`}
+          x={centerX + 5}
+          y={centerY - levelRadius - 4}
+          fontSize={10}
+          fill="#999"
+          fontWeight="500"
+        >
+          {levelValue.toFixed(0)}kg
+        </SvgText>
+      );
+    }
   }
-  
-  // Generate axis lines with better visibility
+
+  // Axis lines
   const axisLines = data.map((_, index) => {
     const angle = index * angleStep - Math.PI / 2;
     const endX = centerX + radius * Math.cos(angle);
     const endY = centerY + radius * Math.sin(angle);
-    
     return (
       <Line
         key={`axis-${index}`}
@@ -81,139 +121,109 @@ export default function RadarChart({
         y2={endY}
         stroke="#D0D0D0"
         strokeWidth={1}
-        opacity={0.6}
+        opacity={0.5}
       />
     );
   });
-  
-  // Generate data polygon points
+
+  // Polygon points
   const polygonPoints = data
     .map((d, i) => {
       const point = getPointCoordinates(d.value, i);
       return `${point.x},${point.y}`;
     })
     .join(" ");
-  
-  // Generate labels with better readability
+
+  // Labels with adaptive offset
+  const labelOffset = 25; // distance from edge
   const labels = data.map((d, index) => {
     const angle = index * angleStep - Math.PI / 2;
-    const labelRadius = radius + 25; // Slightly more space for readability
-    const x = centerX + labelRadius * Math.cos(angle);
-    const y = centerY + labelRadius * Math.sin(angle);
-    
-    // Determine text anchor based on position
+    const x = centerX + (radius + labelOffset) * Math.cos(angle);
+    const y = centerY + (radius + labelOffset) * Math.sin(angle);
+
     let textAnchor: "start" | "middle" | "end" = "middle";
-    if (x < centerX - 10) {
-      textAnchor = "end";
-    } else if (x > centerX + 10) {
-      textAnchor = "start";
-    }
-    
-    // Adjust vertical alignment for top and bottom labels
-    let dy = 0;
-    if (y < centerY - radius + 10) {
-      dy = -8; // Move up for top labels
-    } else if (y > centerY + radius - 10) {
-      dy = 8; // Move down for bottom labels
-    }
-    
+    if (x < centerX - 15) textAnchor = "end";
+    else if (x > centerX + 15) textAnchor = "start";
+
     return (
       <G key={`label-${index}`}>
         <SvgText
           x={x}
-          y={y + dy}
-          fontSize={14}
+          y={y - 6}
+          fontSize={labelFontSize}
           fontWeight="600"
           fill={colors.text}
           textAnchor={textAnchor}
-          alignmentBaseline="middle"
         >
           {d.category}
         </SvgText>
         <SvgText
           x={x}
-          y={y + dy + 16}
-          fontSize={12}
-          fill="#555"
+          y={y + 10}
+          fontSize={labelFontSize - 1}
+          fill={
+            d.value > (d.optimalValue || 0) ? colors.error : colors.success
+          }
           textAnchor={textAnchor}
-          alignmentBaseline="middle"
-          fontWeight="500"
         >
           {d.value.toFixed(1)}kg
         </SvgText>
+        {showOptimalLevel && d.optimalValue && (
+          <SvgText
+            x={x}
+            y={y + 22}
+            fontSize={11}
+            fill="#999"
+            textAnchor={textAnchor}
+          >
+            (target {d.optimalValue.toFixed(1)}kg)
+          </SvgText>
+        )}
       </G>
     );
   });
-  
-  // Generate data points (circles at vertices) with better visibility
+
+  // Data points
   const dataPoints = data.map((d, index) => {
     const point = getPointCoordinates(d.value, index);
+    const isOverTarget = d.optimalValue ? d.value > d.optimalValue : false;
     return (
       <Circle
         key={`point-${index}`}
         cx={point.x}
         cy={point.y}
         r={5}
-        fill={d.color}
-        stroke="#FFFFFF"
-        strokeWidth={2}
+        fill={isOverTarget ? colors.error : d.color}
+        stroke="#FFF"
+        strokeWidth={1.5}
       />
     );
   });
-  
-  // Grid level labels with better readability
-  const gridLabels = [];
-  for (let i = 1; i <= gridLevels; i++) {
-    const value = (chartMaxValue * i) / gridLevels;
-    gridLabels.push(
-      <SvgText
-        key={`grid-label-${i}`}
-        x={centerX + 5}
-        y={centerY - (radius * i) / gridLevels - 3}
-        fontSize={11}
-        fill="#666"
-        fontWeight="500"
-        alignmentBaseline="middle"
-      >
-        {value.toFixed(0)}
-      </SvgText>
-    );
-  }
 
   return (
     <View style={styles.container}>
-      <Svg width={size} height={size} style={styles.svg}>
-        {/* Grid */}
-        {showGrid && (
-          <G>
-            {gridCircles}
-            {axisLines}
-            {gridLabels}
-          </G>
+      <Svg width={size} height={size}>
+        {showGrid && <G>{gridCircles}{axisLines}{gridLabels}</G>}
+        {showOptimalLevel && optimalPolygonPoints && (
+          <Polygon
+            points={optimalPolygonPoints}
+            fill="none"
+            stroke={colors.success}
+            strokeWidth={2}
+            strokeDasharray="5,5"
+            opacity={0.8}
+          />
         )}
-        
-        {/* Data polygon with better visibility */}
         <Polygon
           points={polygonPoints}
           fill={colors.primary}
           fillOpacity={fillOpacity}
           stroke={colors.primary}
-          strokeWidth={2.5}
+          strokeWidth={2}
         />
-        
-        {/* Data points */}
         {dataPoints}
-        
-        {/* Labels */}
         {showLabels && labels}
-        
-        {/* Center point */}
-        <Circle
-          cx={centerX}
-          cy={centerY}
-          r={3}
-          fill={colors.text}
-        />
+        <Circle cx={centerX} cy={centerY} r={3} fill={colors.text} />
       </Svg>
     </View>
   );
@@ -223,8 +233,5 @@ const styles = StyleSheet.create({
   container: {
     alignItems: "center",
     justifyContent: "center",
-  },
-  svg: {
-    backgroundColor: "transparent",
   },
 });
