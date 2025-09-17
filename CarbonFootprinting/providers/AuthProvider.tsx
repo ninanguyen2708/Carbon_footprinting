@@ -10,7 +10,8 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile,
-  User as FirebaseUser
+  User as FirebaseUser,
+  sendEmailVerification
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/constants/firebase';
@@ -80,7 +81,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       userEmail: user?.email
     });
 
-    if (!initialized) {
+    if (!initialized || loading) {
       console.log('⏳ Not initialized yet, waiting...');
       return;
     }
@@ -96,25 +97,25 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   // Login function
   const login = async (email: string, password: string) => {
-    try {
-      setLoading(true);
-      console.log('🔐 Starting login for:', email);
+      try {
+        setLoading(true);
+        console.log('🔐 Starting login for:', email);
 
-      await signInWithEmailAndPassword(auth, email, password);
-      console.log('✅ Firebase login successful');
-      // User state updated automatically by onAuthStateChanged
-    } catch (error: any) {
-      console.error('❌ Login error:', error);
-      const message = error.code === 'auth/invalid-credential' ? 'Invalid email or password' :
-        error.code === 'auth/user-not-found' ? 'No account found with this email' :
-          error.code === 'auth/wrong-password' ? 'Incorrect password' :
-            'Login failed. Please try again.';
-      Alert.alert("Login Error", message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
+        await signInWithEmailAndPassword(auth, email, password);
+        console.log('✅ Firebase login successful');
+        // User state updated automatically by onAuthStateChanged
+      } catch (error: any) {
+        console.error('❌ Login error:', error);
+        const message = error.code === 'auth/invalid-credential' ? 'Invalid email or password' :
+          error.code === 'auth/user-not-found' ? 'No account found with this email' :
+            error.code === 'auth/wrong-password' ? 'Incorrect password' :
+              'Login failed. Please try again.';
+        Alert.alert("Login Error", message);
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    };
 
   // Register function
   const register = async (email: string, password: string, confirmPassword: string, firstName: string, lastName: string) => {
@@ -128,20 +129,19 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       if (password !== confirmPassword) {
         throw new Error("Passwords do not match");
       }
-      if (password.length < 6) {
-        throw new Error("Password must be at least 6 characters");
-      }
 
       console.log('📝 Starting registration for:', email);
 
       // Create Firebase auth user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
+      console.log('✅ Auth user created:', firebaseUser.uid);
 
       // Update Firebase auth profile
       await updateProfile(firebaseUser, {
         displayName: `${firstName.trim()} ${lastName.trim()}`
       });
+      console.log('✅ Profile updated');
 
       // Create user profile in Firestore
       const userProfile: User = {
@@ -153,23 +153,45 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         createdAt: Date.now(),
       };
 
-      await setDoc(doc(db, 'users', firebaseUser.uid), userProfile);
-      console.log('✅ User profile created in Firestore');
+      console.log('📝 Saving to Firestore:', userProfile);
+      
+      try {
+        await setDoc(doc(db, 'users', firebaseUser.uid), userProfile);
+        console.log('✅ User saved to Firestore');
+      } catch (firestoreError) {
+        console.error('❌ Firestore save failed:', firestoreError);
+        // Vẫn cho user đăng ký thành công dù Firestore fail
+        Alert.alert(
+          "Warning",
+          "Account created but profile save failed. You can still login.",
+          [{ text: "OK" }]
+        );
+      }
+
+      // Send verification email (optional)
+      try {
+        await sendEmailVerification(firebaseUser);
+        console.log('✅ Verification email sent');
+      } catch (emailError) {
+        console.log('⚠️ Email verification failed:', emailError);
+      }
+
       setUser(userProfile);
+      Alert.alert("Success", "Account created successfully!");
 
     } catch (error: any) {
       console.error('❌ Registration error:', error);
-      const message = error.code === 'auth/email-already-in-use' ? 'Email already registered' :
+      const message = 
+        error.code === 'auth/email-already-in-use' ? 'Email already registered' :
         error.code === 'auth/invalid-email' ? 'Invalid email address' :
-          error.code === 'auth/weak-password' ? 'Password too weak' :
-            error.message || "Registration failed";
+        error.code === 'auth/weak-password' ? 'Password too weak' :
+        error.message || "Registration failed";
       Alert.alert("Registration Error", message);
       throw error;
     } finally {
       setLoading(false);
     }
   };
-
   // Logout function
   const logout = async () => {
     try {

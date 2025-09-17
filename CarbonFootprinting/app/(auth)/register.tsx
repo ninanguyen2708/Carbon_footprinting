@@ -6,7 +6,7 @@ import Input from "@/components/Input";
 import Button from "@/components/Button";
 import colors from "@/constants/colors";
 import { useAuth } from "@/providers/AuthProvider";
-
+import { strongPassword, isBreachedPassword } from "@/utils/password";
 
 export default function RegisterScreen() {
   const { register, loading } = useAuth();
@@ -46,10 +46,11 @@ export default function RegisterScreen() {
       newErrors.email = "Email is invalid";
     }
     
+  // Enhanced password validation
     if (!password) {
       newErrors.password = "Password is required";
-    } else if (password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters";
+    } else if (!strongPassword(password)) {
+      newErrors.password = "Password must be 12+ chars with uppercase, lowercase, number, and symbol";
     }
     
     if (!confirmPassword) {
@@ -63,14 +64,27 @@ export default function RegisterScreen() {
   };
 
   const handleRegister = async () => {
-    if (validateForm()) {
+    if (!(await validateForm())) return;
+      
+      // Check if password has been breached
+      try {
+        const breached = await isBreachedPassword(password);
+        if (breached) {
+          setErrors(prev => ({ 
+            ...prev, 
+            password: "This password appears in data breaches. Please choose a stronger password." 
+          }));
+          return;
+        }
+      } catch (error) {
+        console.log("Could not check password breach, continuing...");
+      }
+      
       try {
         await register(email, password, confirmPassword, firstName, lastName);
       } catch (error) {
-        // Error is handled in the register function
         console.log("Registration failed:", error);
       }
-    }
   };
 
   return (
