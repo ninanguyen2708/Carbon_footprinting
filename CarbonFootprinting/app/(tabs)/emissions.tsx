@@ -7,9 +7,10 @@ import {
   TouchableOpacity, 
   Dimensions,
   ActivityIndicator,
-  Alert 
+  Alert,
+  Linking
 } from "react-native";
-import { PieChart, Activity, Target, TrendingUp, AlertCircle, BarChart3, Radar, Info, TreePine, Zap } from "lucide-react-native";
+import { PieChart, Activity, Target, TrendingUp, AlertCircle, BarChart3, Radar, Info, TreePine, ExternalLink } from "lucide-react-native";
 import { useCarbonData } from "@/providers/CarbonDataProvider";
 import EmissionsBarChart from "@/components/EmissionsBarChart";
 import ImprovedRadarChart from "@/components/ImprovedRadarChart";
@@ -17,103 +18,71 @@ import EmptyState from "@/components/EmptyState";
 import colors from "@/constants/colors";
 import { router } from "expo-router";
 
-type TimeRange = "week" | "month" | "year" | "all";
+type TimeRange = "daily" | "weekly";
 type ChartType = "bar" | "radar";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
-// Optimal carbon targets (in kg CO2e) for university students
+// Optimal carbon targets based on IPCC recommendations for 1.5°C warming limit
+// Source: IPCC SR15 (2018) and UK Committee on Climate Change
 const OPTIMAL_TARGETS = {
-  daily: 10,      // 10 kg/day
-  weekly: 70,     // 70 kg/week  
-  monthly: 300,   // 300 kg/month
-  yearly: 3650,   // 3.65 tons/year
+  daily: 5.5,      // 5.5 kg/day (2 tons/year target)
+  weekly: 38.5,    // 38.5 kg/week
   
-  // Category-specific monthly targets
+  // Category-specific daily targets (proportional breakdown)
   categories: {
-    transport: 90,   // 30% of monthly
-    food: 75,        // 25% of monthly
-    energy: 60,      // 20% of monthly
-    waste: 30,       // 10% of monthly
-    other: 45,       // 15% of monthly
-  }
-};
-
-// Carbon offset suggestions
-const OFFSET_SUGGESTIONS = {
-  transport: {
-    icon: "🌳",
-    text: (overAmount: number) => `Offset by planting ${Math.ceil(overAmount / 20)} trees`,
-    detail: "Each tree absorbs ~20kg CO2/year"
-  },
-  food: {
-    icon: "🥗",
-    text: (overAmount: number) => `Try ${Math.ceil(overAmount / 5)} meatless days`,
-    detail: "Each vegetarian day saves ~5kg CO2"
-  },
-  energy: {
-    icon: "❄️",
-    text: (overAmount: number) => `Equivalent to ${Math.ceil(overAmount / 2)} hours of AC use`,
-    detail: "Reduce by 1°C to save ~10% energy"
-  },
-  waste: {
-    icon: "♻️",
-    text: (overAmount: number) => `Recycle ${Math.ceil(overAmount * 2)} more kg`,
-    detail: "Recycling saves ~0.5kg CO2/kg waste"
-  },
-  other: {
-    icon: "🚲",
-    text: (overAmount: number) => `Bike ${Math.ceil(overAmount / 0.2)} km instead of driving`,
-    detail: "Cycling saves ~0.2kg CO2/km"
+    daily: {
+      transport: 1.65,  // 30% of daily
+      food: 1.38,        // 25% of daily
+      energy: 1.1,       // 20% of daily
+      waste: 0.55,       // 10% of daily
+      other: 0.82,       // 15% of daily
+    },
+    weekly: {
+      transport: 11.55,  // 30% of weekly
+      food: 9.63,        // 25% of weekly
+      energy: 7.7,       // 20% of weekly
+      waste: 3.85,       // 10% of weekly
+      other: 5.77,       // 15% of weekly
+    }
   }
 };
 
 export default function EmissionsScreen() {
   const { entries, isLoading, resetEntries } = useCarbonData();
-  const [timeRange, setTimeRange] = useState<TimeRange>("month");
+  const [timeRange, setTimeRange] = useState<TimeRange>("daily");
   const [chartType, setChartType] = useState<ChartType>("bar");
   const [showOptimalExplanation, setShowOptimalExplanation] = useState(false);
   
+  // Open reference link
+  const openReferenceLink = () => {
+    Linking.openURL('https://www.ipcc.ch/sr15/chapter/spm/');
+  };
+  
   // Calculate current optimal target based on time range
   const getOptimalTarget = () => {
-    switch (timeRange) {
-      case "week": return OPTIMAL_TARGETS.weekly;
-      case "month": return OPTIMAL_TARGETS.monthly;
-      case "year": return OPTIMAL_TARGETS.yearly;
-      default: return OPTIMAL_TARGETS.monthly;
-    }
+    return timeRange === "daily" ? OPTIMAL_TARGETS.daily : OPTIMAL_TARGETS.weekly;
   };
   
   // Calculate category totals and optimal values based on time range
   const categoryData = useMemo(() => {
     let filteredEntries = entries;
     const now = new Date();
-    let timeMultiplier = 1;
     
     // Filter entries based on time range
-    switch (timeRange) {
-      case "week":
-        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        filteredEntries = entries.filter(e => new Date(e.date) >= weekAgo);
-        timeMultiplier = 7 / 30;
-        break;
-      case "month":
-        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        filteredEntries = entries.filter(e => new Date(e.date) >= monthAgo);
-        timeMultiplier = 1;
-        break;
-      case "year":
-        const yearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-        filteredEntries = entries.filter(e => new Date(e.date) >= yearAgo);
-        timeMultiplier = 12;
-        break;
-      case "all":
-        if (entries.length > 0) {
-          const firstDate = new Date(entries[entries.length - 1].date);
-          const monthsSince = (now.getTime() - firstDate.getTime()) / (30 * 24 * 60 * 60 * 1000);
-          timeMultiplier = Math.max(1, monthsSince);
-        }
-        break;
+    if (timeRange === "daily") {
+      // Today's entries only
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      filteredEntries = entries.filter(e => {
+        const entryDate = new Date(e.date);
+        entryDate.setHours(0, 0, 0, 0);
+        return entryDate.getTime() === today.getTime();
+      });
+    } else {
+      // This week's entries
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      filteredEntries = entries.filter(e => new Date(e.date) >= weekAgo);
     }
     
     // Calculate totals by category
@@ -129,37 +98,40 @@ export default function EmissionsScreen() {
       totals[entry.category] += entry.carbonValue;
     });
     
+    // Get appropriate optimal values
+    const optimalCategories = OPTIMAL_TARGETS.categories[timeRange];
+    
     // Create data with optimal values
     return [
       { 
         category: "Transport", 
         value: totals.transport, 
         color: colors.transport,
-        optimalValue: OPTIMAL_TARGETS.categories.transport * timeMultiplier
+        optimalValue: optimalCategories.transport
       },
       { 
         category: "Food", 
         value: totals.food, 
         color: colors.food,
-        optimalValue: OPTIMAL_TARGETS.categories.food * timeMultiplier
+        optimalValue: optimalCategories.food
       },
       { 
         category: "Energy", 
         value: totals.energy, 
         color: colors.energy,
-        optimalValue: OPTIMAL_TARGETS.categories.energy * timeMultiplier
+        optimalValue: optimalCategories.energy
       },
       { 
         category: "Waste", 
         value: totals.waste, 
         color: colors.waste,
-        optimalValue: OPTIMAL_TARGETS.categories.waste * timeMultiplier
+        optimalValue: optimalCategories.waste
       },
       { 
         category: "Other", 
         value: totals.other, 
         color: colors.other,
-        optimalValue: OPTIMAL_TARGETS.categories.other * timeMultiplier
+        optimalValue: optimalCategories.other
       },
     ];
   }, [entries, timeRange]);
@@ -167,22 +139,7 @@ export default function EmissionsScreen() {
   const totalEmissions = categoryData.reduce((sum, item) => sum + item.value, 0);
   const optimalTotal = getOptimalTarget();
   const percentageOfTarget = optimalTotal > 0 ? (totalEmissions / optimalTotal) * 100 : 0;
-  
-  // Calculate daily average for projections
-  const dailyAverage = useMemo(() => {
-    if (entries.length === 0) return 0;
-    const daysSinceFirst = Math.max(1, 
-      (new Date().getTime() - new Date(entries[entries.length - 1].date).getTime()) / 
-      (24 * 60 * 60 * 1000)
-    );
-    return totalEmissions / daysSinceFirst;
-  }, [entries, totalEmissions]);
-  
-  const monthlyProjection = dailyAverage * 30;
-  const yearlyProjection = dailyAverage * 365;
-  
-  // Dynamic chart size
-  const chartSize = Math.min(screenWidth - 20, screenHeight * 0.45);
+  const totalDifference = totalEmissions - optimalTotal;
   
   // Determine achievement status
   const getAchievementStatus = () => {
@@ -230,19 +187,25 @@ export default function EmissionsScreen() {
           </Text>
         </View>
         
-        {/* Time Range Selector */}
+        {/* Time Range Selector - Daily/Weekly only */}
         <View style={styles.timeRangeContainer}>
-          {(["week", "month", "year", "all"] as TimeRange[]).map((range) => (
-            <TouchableOpacity
-              key={range}
-              style={[styles.timeRangeButton, timeRange === range && styles.activeTimeRange]}
-              onPress={() => setTimeRange(range)}
-            >
-              <Text style={[styles.timeRangeText, timeRange === range && styles.activeTimeRangeText]}>
-                {range === "all" ? "All" : range.charAt(0).toUpperCase() + range.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          <TouchableOpacity
+            style={[styles.timeRangeButton, timeRange === "daily" && styles.activeTimeRange]}
+            onPress={() => setTimeRange("daily")}
+          >
+            <Text style={[styles.timeRangeText, timeRange === "daily" && styles.activeTimeRangeText]}>
+              Today
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.timeRangeButton, timeRange === "weekly" && styles.activeTimeRange]}
+            onPress={() => setTimeRange("weekly")}
+          >
+            <Text style={[styles.timeRangeText, timeRange === "weekly" && styles.activeTimeRangeText]}>
+              This Week
+            </Text>
+          </TouchableOpacity>
         </View>
         
         {/* Target Progress Card */}
@@ -257,16 +220,20 @@ export default function EmissionsScreen() {
           
           {showOptimalExplanation && (
             <View style={styles.explanationBox}>
-              <Text style={styles.explanationTitle}>How Optimal Targets are Calculated 📊</Text>
+              <Text style={styles.explanationTitle}>How Targets are Calculated 📊</Text>
               <Text style={styles.explanationText}>
-                Based on scientific climate research and the Paris Agreement goals:
+                Based on IPCC recommendations for limiting warming to 1.5°C:
               </Text>
-              <Text style={styles.explanationBullet}>• Global average: 2 tons CO2e/year by 2050</Text>
-              <Text style={styles.explanationBullet}>• Student average: 3.65 tons/year (transitional target)</Text>
-              <Text style={styles.explanationBullet}>• Distribution: Transport (30%), Food (25%), Energy (20%), Waste (10%), Other (15%)</Text>
+              <Text style={styles.explanationBullet}>• Individual annual budget: 2 tons CO₂e/year</Text>
+              <Text style={styles.explanationBullet}>• Daily target: 5.5 kg CO₂e</Text>
+              <Text style={styles.explanationBullet}>• Weekly target: 38.5 kg CO₂e</Text>
               <Text style={styles.explanationNote}>
-                These targets help limit global warming to 1.5°C above pre-industrial levels.
+                Distribution across categories based on average consumption patterns.
               </Text>
+              <TouchableOpacity onPress={openReferenceLink} style={styles.referenceLink}>
+                <ExternalLink size={12} color={colors.primary} />
+                <Text style={styles.referenceLinkText}>IPCC SR15 Report</Text>
+              </TouchableOpacity>
             </View>
           )}
           
@@ -281,13 +248,13 @@ export default function EmissionsScreen() {
               <View style={styles.targetDivider} />
               <View>
                 <Text style={styles.targetLabel}>Optimal Target</Text>
-                <Text style={styles.targetValue}>{optimalTotal.toFixed(0)} kg</Text>
+                <Text style={styles.targetValue}>{optimalTotal.toFixed(1)} kg</Text>
               </View>
               <View style={styles.targetDivider} />
               <View>
-                <Text style={styles.targetLabel}>% of Target</Text>
+                <Text style={styles.targetLabel}>Difference</Text>
                 <Text style={[styles.targetValue, { color: achievementStatus.color }]}>
-                  {percentageOfTarget.toFixed(0)}%
+                  {totalDifference > 0 ? '+' : ''}{totalDifference.toFixed(1)} kg
                 </Text>
               </View>
             </View>
@@ -343,7 +310,7 @@ export default function EmissionsScreen() {
         <View style={styles.chartContainer}>
           <Text style={styles.chartTitle}>Emissions by Category</Text>
           <Text style={styles.chartSubtitle}>
-            {chartType === "bar" ? "Actual vs Optimal Levels" : "Radar view of emission patterns"}
+            {chartType === "bar" ? "Compare your actual emissions with optimal targets" : "Visualize your emission patterns"}
           </Text>
           
           {chartType === "bar" ? (
@@ -353,121 +320,94 @@ export default function EmissionsScreen() {
           )}
         </View>
 
-        {/* Reset Button - Works with both chart types */}
+        {/* Reset Button */}
         <TouchableOpacity style={styles.resetButton} onPress={() => resetEntries()}>
           <Text style={styles.resetButtonText}>Reset Data</Text>
         </TouchableOpacity>
 
-        {/* Carbon Offset Suggestions */}
-        <View style={styles.offsetCard}>
-          <View style={styles.offsetHeader}>
+        {/* Combined Action Items & Tips */}
+        <View style={styles.actionCard}>
+          <View style={styles.actionHeader}>
             <TreePine size={20} color={colors.primary} />
-            <Text style={styles.offsetTitle}>Offset Suggestions 🌱</Text>
-          </View>
-          
-          {categoryData.filter(cat => cat.value > (cat.optimalValue || 0)).map((category) => {
-            const overAmount = category.value - (category.optimalValue || 0);
-            const categoryKey = category.category.toLowerCase() as keyof typeof OFFSET_SUGGESTIONS;
-            const suggestion = OFFSET_SUGGESTIONS[categoryKey];
-            
-            return (
-              <View key={category.category} style={styles.offsetItem}>
-                <Text style={styles.offsetCategory}>
-                  <Text style={styles.offsetIcon}>{suggestion.icon}</Text> {category.category}:
-                </Text>
-                <Text style={styles.offsetText}>{suggestion.text(overAmount)}</Text>
-                <Text style={styles.offsetDetail}>{suggestion.detail}</Text>
-              </View>
-            );
-          })}
-          
-          {categoryData.filter(cat => cat.value > (cat.optimalValue || 0)).length === 0 && (
-            <Text style={styles.offsetSuccess}>
-              🎉 Excellent! You're meeting all category targets!
-            </Text>
-          )}
-        </View>
-
-        {/* Projections Card */}
-        <View style={styles.projectionsCard}>
-          <View style={styles.projectionsHeader}>
-            <TrendingUp size={20} color={colors.primary} />
-            <Text style={styles.projectionsTitle}>Projections Based on Current Usage</Text>
-          </View>
-          
-          <View style={styles.projectionRow}>
-            <Text style={styles.projectionLabel}>Daily Average:</Text>
-            <Text style={styles.projectionValue}>{dailyAverage.toFixed(1)} kg</Text>
-            <Text style={[
-              styles.projectionStatus, 
-              { color: dailyAverage <= OPTIMAL_TARGETS.daily ? colors.success : colors.error }
-            ]}>
-              (Target: {OPTIMAL_TARGETS.daily} kg)
-            </Text>
-          </View>
-          
-          <View style={styles.projectionRow}>
-            <Text style={styles.projectionLabel}>Monthly Projection:</Text>
-            <Text style={styles.projectionValue}>{monthlyProjection.toFixed(0)} kg</Text>
-            <Text style={[
-              styles.projectionStatus, 
-              { color: monthlyProjection <= OPTIMAL_TARGETS.monthly ? colors.success : colors.error }
-            ]}>
-              (Target: {OPTIMAL_TARGETS.monthly} kg)
-            </Text>
-          </View>
-          
-          <View style={styles.projectionRow}>
-            <Text style={styles.projectionLabel}>Yearly Projection:</Text>
-            <Text style={styles.projectionValue}>{(yearlyProjection / 1000).toFixed(1)} tons</Text>
-            <Text style={[
-              styles.projectionStatus, 
-              { color: yearlyProjection <= OPTIMAL_TARGETS.yearly ? colors.success : colors.error }
-            ]}>
-              (Target: {(OPTIMAL_TARGETS.yearly / 1000).toFixed(1)} tons)
-            </Text>
-          </View>
-        </View>
-        
-        {/* Action Tips */}
-        <View style={styles.tipsCard}>
-          <View style={styles.tipsHeader}>
-            <AlertCircle size={20} color={colors.primary} />
-            <Text style={styles.tipsTitle}>Tips to Achieve Your Target</Text>
+            <Text style={styles.actionTitle}>Actions to Reach Your Target</Text>
           </View>
           
           {(() => {
-            const maxCategory = categoryData.reduce((max, item) => 
-              item.value > max.value ? item : max
-            );
-            const overTargetCategories = categoryData.filter(
-              item => item.optimalValue && item.value > item.optimalValue
-            );
+            // Find categories over target and identify highest
+            const overTargetCategories = categoryData
+              .map(cat => ({
+                ...cat,
+                overAmount: cat.value - (cat.optimalValue || 0)
+              }))
+              .filter(cat => cat.overAmount > 0)
+              .sort((a, b) => b.overAmount - a.overAmount);
+            
+            const highestOverCategory = overTargetCategories[0];
+            
+            if (overTargetCategories.length === 0) {
+              return (
+                <Text style={styles.actionSuccess}>
+                  🎉 Excellent! You're meeting all targets. Keep up the sustainable lifestyle!
+                </Text>
+              );
+            }
             
             return (
-              <View>
-                {overTargetCategories.length > 0 ? (
-                  <>
-                    <Text style={styles.tipText}>
-                      • Focus on reducing <Text style={styles.tipHighlight}>{maxCategory.category}</Text> emissions - your highest category
+              <>
+                {highestOverCategory && (
+                  <View style={styles.priorityAlert}>
+                    <AlertCircle size={16} color={colors.error} />
+                    <Text style={styles.priorityText}>
+                      <Text style={styles.priorityCategory}>{highestOverCategory.category}</Text> is your highest priority 
+                      ({highestOverCategory.overAmount.toFixed(1)} kg over target)
                     </Text>
-                    {overTargetCategories.map(cat => (
-                      <Text key={cat.category} style={styles.tipText}>
-                        • {cat.category}: Reduce by {(cat.value - (cat.optimalValue || 0)).toFixed(1)} kg to meet target
-                      </Text>
-                    ))}
-                  </>
-                ) : (
-                  <Text style={styles.tipText}>
-                    • Great job! You're meeting all category targets. Keep it up! 🌱
-                  </Text>
+                  </View>
                 )}
-                <Text style={styles.tipText}>
-                  • Small daily changes add up: walk more, eat local, save energy
-                </Text>
-              </View>
+                
+                {overTargetCategories.map((category) => {
+                  const categoryKey = category.category.toLowerCase() as string;
+                  const getActionText = () => {
+                    switch(categoryKey) {
+                      case 'transport':
+                        return `Walk/bike for trips under 3km, or take public transport`;
+                      case 'food':
+                        return `Try ${Math.ceil(category.overAmount / 2)} plant-based meals`;
+                      case 'energy':
+                        return `Reduce heating/cooling by 1°C, unplug unused devices`;
+                      case 'waste':
+                        return `Recycle ${Math.ceil(category.overAmount * 2)} kg more materials`;
+                      case 'other':
+                        return `Buy secondhand or reduce new purchases`;
+                      default:
+                        return `Reduce consumption in this category`;
+                    }
+                  };
+                  
+                  const isHighest = category.category === highestOverCategory?.category;
+                  
+                  return (
+                    <View key={category.category} style={[styles.actionItem, isHighest && styles.highestActionItem]}>
+                      <Text style={[styles.actionCategory, isHighest && styles.highestActionCategory]}>
+                        {category.category}:
+                      </Text>
+                      <Text style={styles.actionAmount}>
+                        Reduce by {category.overAmount.toFixed(1)} kg:
+                      </Text>
+                      <Text style={styles.actionText}>{getActionText()}</Text>
+                    </View>
+                  );
+                })}
+              </>
             );
           })()}
+          
+          <View style={styles.quickTips}>
+            <Text style={styles.quickTipsTitle}>Quick Daily Wins:</Text>
+            <Text style={styles.tipText}>• 5-min shorter shower saves 0.5 kg CO₂</Text>
+            <Text style={styles.tipText}>• Skipping one meat meal saves 2-3 kg CO₂</Text>
+            <Text style={styles.tipText}>• Working from home saves 2-8 kg CO₂ (no commute)</Text>
+            <Text style={styles.tipText}>• Air-drying clothes saves 0.7 kg CO₂ per load</Text>
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -502,6 +442,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#666",
   },
+  
+  // Time Range Styles
   timeRangeContainer: {
     flexDirection: "row",
     paddingHorizontal: 20,
@@ -586,6 +528,17 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     marginTop: 4,
   },
+  referenceLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 6,
+  },
+  referenceLinkText: {
+    fontSize: 11,
+    color: colors.primary,
+    textDecorationLine: "underline",
+  },
   
   targetContent: {
     marginBottom: 12,
@@ -622,6 +575,8 @@ const styles = StyleSheet.create({
     color: "#666",
     textAlign: "center",
   },
+  
+  // Progress Bar
   progressContainer: {
     position: "relative",
     marginTop: 8,
@@ -658,7 +613,7 @@ const styles = StyleSheet.create({
     right: 0,
   },
   
-  // Chart Toggle Styles
+  // Chart Toggle
   chartToggleContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -696,7 +651,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   
-  // Chart Styles
+  // Chart Container
   chartContainer: {
     backgroundColor: "#FFFFFF",
     marginHorizontal: 20,
@@ -720,6 +675,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#666",
     marginBottom: 20,
+    textAlign: "center",
   },
   
   // Reset Button
@@ -743,129 +699,101 @@ const styles = StyleSheet.create({
     fontWeight: "600" as const,
   },
   
-  // Offset Card Styles
-  offsetCard: {
+  // Combined Action Card
+  actionCard: {
     marginHorizontal: 20,
     padding: 16,
     backgroundColor: "#E8F5E9",
     borderRadius: 12,
     marginBottom: 16,
   },
-  offsetHeader: {
+  actionHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     marginBottom: 12,
   },
-  offsetTitle: {
+  actionTitle: {
     fontSize: 16,
     fontWeight: "600" as const,
     color: colors.text,
   },
-  offsetItem: {
+  priorityAlert: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFF3E0",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.error,
+  },
+  priorityText: {
+    fontSize: 13,
+    color: "#333",
+    flex: 1,
+  },
+  priorityCategory: {
+    fontWeight: "700" as const,
+    color: colors.error,
+  },
+  actionItem: {
     marginBottom: 12,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(0,0,0,0.1)",
   },
-  offsetCategory: {
+  highestActionItem: {
+    backgroundColor: "#FFF8E1",
+    padding: 10,
+    borderRadius: 6,
+    marginHorizontal: -10,
+    borderBottomWidth: 0,
+  },
+  actionCategory: {
     fontSize: 14,
-    fontWeight: "600" as const,
+    fontWeight: "700" as const,
     color: colors.text,
-    marginBottom: 4,
-  },
-  offsetIcon: {
-    fontSize: 16,
-  },
-  offsetText: {
-    fontSize: 13,
-    color: "#333",
     marginBottom: 2,
   },
-  offsetDetail: {
-    fontSize: 11,
-    color: "#666",
-    fontStyle: "italic",
+  highestActionCategory: {
+    color: colors.error,
   },
-  offsetSuccess: {
+  actionAmount: {
+    fontSize: 13,
+    fontWeight: "600" as const,
+    color: "#555",
+    marginBottom: 2,
+  },
+  actionText: {
+    fontSize: 12,
+    color: "#666",
+    lineHeight: 16,
+  },
+  actionSuccess: {
     fontSize: 14,
     color: colors.success,
     fontWeight: "500" as const,
     textAlign: "center",
+    marginVertical: 8,
   },
-  
-  // Projections Card
-  projectionsCard: {
-    marginHorizontal: 20,
-    padding: 16,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+  quickTips: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.1)",
   },
-  projectionsHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  projectionsTitle: {
-    fontSize: 16,
-    fontWeight: "600" as const,
-    color: colors.text,
-  },
-  projectionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  projectionLabel: {
+  quickTipsTitle: {
     fontSize: 14,
-    color: "#666",
-    flex: 1,
-  },
-  projectionValue: {
-    fontSize: 16,
     fontWeight: "600" as const,
     color: colors.text,
-    marginRight: 8,
-  },
-  projectionStatus: {
-    fontSize: 13,
-  },
-  
-  // Tips Card
-  tipsCard: {
-    marginHorizontal: 20,
-    padding: 16,
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
-  },
-  tipsHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  tipsTitle: {
-    fontSize: 16,
-    fontWeight: "600" as const,
-    color: colors.text,
+    marginBottom: 6,
   },
   tipText: {
-    fontSize: 14,
+    fontSize: 12,
     color: "#666",
-    marginBottom: 6,
-    lineHeight: 20,
-  },
-  tipHighlight: {
-    color: colors.primary,
-    fontWeight: "600" as const,
+    marginBottom: 3,
+    lineHeight: 16,
   },
 });
